@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Panel de Atención (WebSocket)</title>
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --card: rgba(255,255,255,.06);
+      --card2: rgba(255,255,255,.08);
+      --stroke: rgba(255,255,255,.10);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad:  #ef4444;
+      --info: #38bdf8;
+
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 20% 0%, rgba(56,189,248,.14), transparent 55%),
+        radial-gradient(900px 500px at 90% 20%, rgba(34,197,94,.12), transparent 60%),
+        radial-gradient(900px 500px at 30% 90%, rgba(245,158,11,.10), transparent 55%),
+        var(--bg);
+      min-height:100vh;
+    }
+
+    .container{
+      width:min(1100px, calc(100% - 32px));
+      margin: 24px auto 48px;
+    }
+
+    header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:18px;
+    }
+
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    h1{
+      margin:0;
+      font-size: 26px;
+      letter-spacing: .2px;
+      line-height:1.1;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size: 14px;
+    }
+
+    .status-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius: 999px;
+      background: var(--card);
+      border:1px solid var(--stroke);
+      box-shadow: var(--shadow);
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(245,158,11,.15);
+    }
+    .dot.ok{
+      background: var(--good);
+      box-shadow: 0 0 0 4px rgba(34,197,94,.18);
+    }
+    .dot.bad{
+      background: var(--bad);
+      box-shadow: 0 0 0 4px rgba(239,68,68,.18);
+    }
+    .status-text{
+      font-size: 14px;
+      color: var(--text);
+    }
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-left:6px;
+    }
+
+    .controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin: 14px 0 18px;
+      flex-wrap: wrap;
+    }
+
+    .input{
+      flex: 1 1 240px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 14px;
+      border-radius: 999px;
+      background: var(--card);
+      border:1px solid var(--stroke);
+      backdrop-filter: blur(10px);
+    }
+    .input input{
+      width:100%;
+      border:none;
+      outline:none;
+      background:transparent;
+      color:var(--text);
+      font-size:14px;
+    }
+    .input input::placeholder{ color: rgba(255,255,255,.45); }
+
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius: 999px;
+      background: var(--card);
+      border:1px solid var(--stroke);
+      color: var(--muted);
+      font-size:13px;
+    }
+
+    .cards{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 900px){
+      .cards{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 520px){
+      .cards{ grid-template-columns: 1fr; }
+    }
+    .card{
+      background: linear-gradient(180deg, var(--card2), var(--card));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 14px 14px 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      min-height: 86px;
+    }
+    .card .label{
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing:.2px;
+      margin-bottom: 8px;
+    }
+    .card .value{
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing:.2px;
+      display:flex;
+      align-items: baseline;
+      gap:10px;
+    }
+    .trend{
+      font-size:12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .table-wrap{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      overflow:hidden;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+    table{
+      width:100%;
+      border-collapse: collapse;
+    }
+    thead th{
+      text-align:left;
+      font-size: 12px;
+      color: rgba(255,255,255,.70);
+      padding: 12px 14px;
+      background: rgba(0,0,0,.18);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      position: sticky;
+      top:0;
+      backdrop-filter: blur(10px);
+    }
+    tbody td{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 14px;
+      color: rgba(255,255,255,.88);
+      vertical-align: middle;
+    }
+    tbody tr:hover{
+      background: rgba(255,255,255,.04);
+    }
+
+    .state-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.12);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing:.2px;
+    }
+    .state-dot{
+      width:8px;height:8px;border-radius:50%;
+      background: var(--info);
+      box-shadow: 0 0 0 4px rgba(56,189,248,.12);
+    }
+    .state-AUSENTE{
+      color: rgba(255,255,255,.92);
+      background: rgba(239,68,68,.12);
+      border-color: rgba(239,68,68,.22);
+    }
+    .state-AUSENTE .state-dot{ background: var(--bad); box-shadow:0 0 0 4px rgba(239,68,68,.14); }
+    .state-MUY_ACTIVO{
+      background: rgba(34,197,94,.10);
+      border-color: rgba(34,197,94,.22);
+    }
+    .state-MUY_ACTIVO .state-dot{ background: var(--good); box-shadow:0 0 0 4px rgba(34,197,94,.14); }
+    .state-ACTIVO{
+      background: rgba(56,189,248,.10);
+      border-color: rgba(56,189,248,.22);
+    }
+    .state-ACTIVO .state-dot{ background: var(--info); box-shadow:0 0 0 4px rgba(56,189,248,.14); }
+    .state-QUIETO{
+      background: rgba(245,158,11,.10);
+      border-color: rgba(245,158,11,.22);
+    }
+    .state-QUIETO .state-dot{ background: var(--warn); box-shadow:0 0 0 4px rgba(245,158,11,.14); }
+
+    .muted{ color: var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <h1>Panel de Atención</h1>
+        <div class="subtitle">Actualización en tiempo real por WebSocket (métricas de ratón + idle).</div>
+      </div>
+      <div class="status-pill">
+        <span id="dot" class="dot"></span>
+        <span id="status" class="status-text">Conectando...</span>
+        <span id="since" class="small"></span>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="input">
+        <span class="muted">🔎</span>
+        <input id="search" type="text" placeholder="Buscar por usuario (equipo/usuario)..." />
+      </div>
+      <div class="chip"><span class="muted">WS:</span> <span id="wsurl" class="mono"></span></div>
+    </div>
+
+    <section class="cards">
+      <div class="card">
+        <div class="label">Conectados (usuarios)</div>
+        <div class="value"><span id="c_total">0</span> <span class="trend" id="t_total"></span></div>
+      </div>
+      <div class="card">
+        <div class="label">Activos / Muy activos</div>
+        <div class="value"><span id="c_active">0</span> <span class="trend" id="t_active"></span></div>
+      </div>
+      <div class="card">
+        <div class="label">Quietos</div>
+        <div class="value"><span id="c_quiet">0</span> <span class="trend" id="t_quiet"></span></div>
+      </div>
+      <div class="card">
+        <div class="label">Ausentes</div>
+        <div class="value"><span id="c_away">0</span> <span class="trend" id="t_away"></span></div>
+      </div>
+    </section>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40%">Usuario</th>
+            <th style="width:18%">Estado</th>
+            <th style="width:14%">mouse_px_1s</th>
+            <th style="width:14%">idle_ms</th>
+            <th style="width:14%">Última</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  
+  const WS_URL = "ws://192.168.11.234:8765";
+  document.getElementById("wsurl").textContent = WS_URL;
+
+  const dot = document.getElementById("dot");
+  const statusEl = document.getElementById("status");
+  const sinceEl = document.getElementById("since");
+  const rowsEl = document.getElementById("rows");
+  const searchEl = document.getElementById("search");
+
+  const cTotal = document.getElementById("c_total");
+  const cActive = document.getElementById("c_active");
+  const cQuiet = document.getElementById("c_quiet");
+  const cAway = document.getElementById("c_away");
+
+  const stateByUser = new Map();
+  let connectedAt = null;
+
+  function fmtTime(ts){
+    if(!ts) return "";
+    return new Date(ts * 1000).toLocaleTimeString();
+  }
+
+  function pill(state){
+    const cls = "state-pill state-" + state;
+    return `
+      <span class="${cls}">
+        <span class="state-dot"></span>
+        ${state}
+      </span>`;
+  }
+
+  function computeCounters(items){
+    let active = 0, quiet = 0, away = 0;
+    for (const it of items){
+      if(it.state === "AUSENTE") away++;
+      else if(it.state === "QUIETO") quiet++;
+      else active++; // ACTIVO o MUY_ACTIVO
+    }
+    return { total: items.length, active, quiet, away };
+  }
+
+  function render(){
+    const q = (searchEl.value || "").toLowerCase().trim();
+
+    const items = Array.from(stateByUser.entries())
+      .map(([user, data]) => ({ user, ...data }))
+      .filter(x => !q || x.user.toLowerCase().includes(q))
+      .sort((a,b) => a.user.localeCompare(b.user));
+
+    const countersAll = computeCounters(Array.from(stateByUser.values()));
+    cTotal.textContent = countersAll.total;
+    cActive.textContent = countersAll.active;
+    cQuiet.textContent = countersAll.quiet;
+    cAway.textContent = countersAll.away;
+
+    rowsEl.innerHTML = items.map(it => {
+      const mouse = (it.mouse_px_1s ?? "");
+      const idle  = (it.idle_ms ?? "");
+      const last  = fmtTime(it.ts);
+      const s = it.state || "ACTIVO";
+      return `
+        <tr>
+          <td>${it.user}</td>
+          <td>${pill(s)}</td>
+          <td class="mono">${mouse}</td>
+          <td class="mono">${idle}</td>
+          <td class="mono muted">${last}</td>
+        </tr>
+      `;
+    }).join("");
+
+    if(items.length === 0){
+      rowsEl.innerHTML = `
+        <tr>
+          <td colspan="5" class="muted">No hay datos (o el filtro no coincide).</td>
+        </tr>`;
+    }
+  }
+
+  searchEl.addEventListener("input", render);
+
+  function setConnState(state){
+    if(state === "ok"){
+      dot.className = "dot ok";
+      statusEl.textContent = "Conectado";
+    } else if(state === "bad"){
+      dot.className = "dot bad";
+      statusEl.textContent = "Error";
+    } else {
+      dot.className = "dot";
+      statusEl.textContent = "Conectando...";
+    }
+  }
+
+  function tickSince(){
+    if(!connectedAt){ sinceEl.textContent = ""; return; }
+    const s = Math.max(0, Math.floor((Date.now() - connectedAt) / 1000));
+    sinceEl.textContent = `· ${s}s`;
+  }
+  setInterval(tickSince, 1000);
+
+  const ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    connectedAt = Date.now();
+    setConnState("ok");
+  };
+  ws.onerror = () => setConnState("bad");
+  ws.onclose = () => {
+    setConnState("bad");
+    statusEl.textContent = "Desconectado";
+  };
+
+  ws.onmessage = (ev) => {
+    try{
+      const msg = JSON.parse(ev.data);
+      if(msg.type === "STATE" && msg.user){
+        stateByUser.set(msg.user, msg);
+        render();
+      }
+    }catch(e){}
+  };
+
+  render();
+</script>
+</body>
+</html>
